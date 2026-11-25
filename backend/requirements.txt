@@ -7,3 +7,8 @@ scikit-learn>=1.5.0,<2.0.0
 httpx>=0.27.0,<1.0.0
 pyserial>=3.5,<4.0
 pytest>=8.3.0,<10.0.0
+
+# Optional — required only for CWRU benchmark (scripts/cwru_benchmark.py)
+# Install with: pip install torch scipy
+# torch>=2.0.0        # PyTorch for WDCNN training
+# scipy>=1.13.0,<2.0  # Loading CWRU .mat files
