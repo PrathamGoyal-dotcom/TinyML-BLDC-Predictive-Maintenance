@@ -7,6 +7,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Optional
 
+from app.core.state import compute_frontend_metrics
 from app.schemas import FEATURE_NAMES, InferenceResult, RecordingRecord
 
 
@@ -268,6 +269,11 @@ class RecordingsRepository:
             rows = conn.execute(sql).fetchall()
         results: list[dict[str, Any]] = []
         for row in rows:
+            metrics = compute_frontend_metrics(
+                vib_std=float(row["vib_std"]),
+                curr_rms=float(row["curr_rms"]),
+                anomaly_score=float(row["anomaly_score"]),
+            )
             results.append(
                 {
                     "machine_id": row["machine_id"],
@@ -276,6 +282,7 @@ class RecordingsRepository:
                     "fault": row["predicted_fault"],
                     "confidence": float(row["confidence"]),
                     "anomaly_score": float(row["anomaly_score"]),
+                    **metrics,
                     "rpm": float(row["rpm"]),
                     "temperature_c": float(row["temperature_c"]),
                     "updated_at": row["timestamp"],

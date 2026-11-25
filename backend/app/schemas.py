@@ -71,6 +71,10 @@ class DashboardResponse(BaseModel):
     fault: FaultType
     confidence: float = Field(..., ge=0.0, le=1.0)
     anomaly_score: float = Field(..., ge=0.0, le=1.0)
+    vibration: float = Field(default=0.0, ge=0.0)
+    current: float = Field(default=0.0, ge=0.0)
+    sound: float = Field(default=0.0, ge=0.0)
+    degradation: float = Field(default=0.0, ge=0.0, le=100.0)
     rpm: float
     temperature_c: float
     language: LanguageCode
@@ -93,6 +97,7 @@ class RecordingIngestRequest(BaseModel):
     label: Optional[str] = Field(default=None, max_length=64)
     vibration_g: list[float] = Field(..., min_length=8, max_length=16384)
     current_a: Optional[list[float]] = Field(default=None, max_length=16384)
+    sound_db: Optional[float] = Field(default=None, ge=0.0, le=160.0)
     temperature_c: float = Field(..., ge=-40.0, le=200.0)
 
     @field_validator("vibration_g")
@@ -172,6 +177,7 @@ class InjectRequest(BaseModel):
     base_current_a: Optional[list[float]] = Field(
         default=None, min_length=8, max_length=16384
     )
+    sound_db: Optional[float] = Field(default=None, ge=0.0, le=160.0)
     persist: bool = Field(default=False)
     seed: Optional[int] = Field(default=None)
 

@@ -16,12 +16,37 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def compute_frontend_metrics(
+    *,
+    vib_std: float,
+    curr_rms: float,
+    anomaly_score: float,
+    sound_db: Optional[float] = None,
+) -> dict[str, float]:
+    """Map raw sensor features into frontend units (mm/s, A, dB, 0-100 degradation)."""
+    vibration_mms = round(min(25.0, max(0.5, 1.8 + float(vib_std) * 12.0)), 2)
+    current_a = round(max(0.0, float(curr_rms)), 2)
+    sound = (
+        round(float(sound_db), 1)
+        if sound_db is not None
+        else round(58.0 + 32.0 * float(anomaly_score), 1)
+    )
+    degradation = round(max(0.0, min(100.0, float(anomaly_score) * 100.0)), 1)
+    return {
+        "vibration": vibration_mms,
+        "current": current_a,
+        "sound": sound,
+        "degradation": degradation,
+    }
+
+
 class DashboardStateManager:
     """Maintains latest machine health snapshots and fans out live SSE events."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._states: dict[str, dict[str, Any]] = {}
+        self._latest_machine_id: Optional[str] = None
         self._subscribers: dict[
             str, list[tuple[asyncio.AbstractEventLoop, asyncio.Queue[dict[str, Any]]]]
         ] = {}
@@ -31,11 +56,13 @@ class DashboardStateManager:
         with self._lock:
             for rec in records:
                 self._states[rec["machine_id"]] = dict(rec)
+                self._latest_machine_id = rec["machine_id"]
 
     def clear(self) -> None:
         """Reset in-memory state (used during test isolation)."""
         with self._lock:
             self._states.clear()
+            self._latest_machine_id = None
             self._subscribers.clear()
 
     def build_dashboard_payload(
@@ -52,6 +79,10 @@ class DashboardStateManager:
             fault=fault,
             confidence=round(float(snapshot["confidence"]), 3),
             anomaly_score=round(float(snapshot["anomaly_score"]), 3),
+            vibration=round(float(snapshot.get("vibration", 0.0)), 2),
+            current=round(float(snapshot.get("current", 0.0)), 2),
+            sound=round(float(snapshot.get("sound", 0.0)), 1),
+            degradation=round(float(snapshot.get("degradation", 0.0)), 1),
             rpm=round(float(snapshot["rpm"]), 1),
             temperature_c=round(float(snapshot["temperature_c"]), 1),
             language=lang,
@@ -67,9 +98,18 @@ class DashboardStateManager:
         inference: InferenceResult,
         rpm: float,
         temperature_c: float,
+        vib_std: float = 0.0,
+        curr_rms: float = 0.0,
+        sound_db: Optional[float] = None,
         updated_at: Optional[str] = None,
     ) -> dict[str, Any]:
         """Update live state for a machine and push to active SSE subscribers."""
+        metrics = compute_frontend_metrics(
+            vib_std=vib_std,
+            curr_rms=curr_rms,
+            anomaly_score=float(inference.anomaly_score),
+            sound_db=sound_db,
+        )
         snapshot: dict[str, Any] = {
             "machine_id": machine_id,
             "tier": int(inference.health_tier),
@@ -77,12 +117,14 @@ class DashboardStateManager:
             "fault": inference.predicted_fault,
             "confidence": float(inference.confidence),
             "anomaly_score": float(inference.anomaly_score),
+            **metrics,
             "rpm": float(rpm),
             "temperature_c": float(temperature_c),
             "updated_at": updated_at or utc_now_iso(),
         }
         with self._lock:
             self._states[machine_id] = snapshot
+            self._latest_machine_id = machine_id
             subs = list(self._subscribers.get(machine_id, []))
 
         for loop, queue in subs:
@@ -111,6 +153,14 @@ class DashboardStateManager:
         """Retrieve latest raw state snapshot for a machine."""
         with self._lock:
             snap = self._states.get(machine_id)
+            return dict(snap) if snap is not None else None
+
+    def get_latest_snapshot(self) -> Optional[dict[str, Any]]:
+        """Retrieve the most recently updated machine snapshot."""
+        with self._lock:
+            if self._latest_machine_id is None:
+                return None
+            snap = self._states.get(self._latest_machine_id)
             return dict(snap) if snap is not None else None
 
     def list_machine_ids(self) -> list[str]:

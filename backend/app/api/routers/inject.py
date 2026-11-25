@@ -99,6 +99,9 @@ def inject_bldc_fault(
         inference=inference,
         rpm=payload.rpm,
         temperature_c=temperature_c,
+        vib_std=features["vib_std"],
+        curr_rms=features["curr_rms"],
+        sound_db=payload.sound_db,
         updated_at=ts,
     )
     dashboard = state_mgr.build_dashboard_payload(snapshot, language=language)

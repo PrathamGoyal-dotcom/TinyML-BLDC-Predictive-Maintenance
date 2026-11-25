@@ -126,3 +126,35 @@ def test_health_docs_and_cors_headers(client: TestClient) -> None:
     assert "/api/v1/inject/" in paths
     assert "/api/v1/dashboard/{machine_id}" in paths
     assert "/api/v1/dashboard/{machine_id}/stream" in paths
+    assert "/api/v1/status" in paths
+
+
+def test_frontend_compatible_telemetry_fields_and_status_endpoint(client: TestClient) -> None:
+    empty = client.get("/api/v1/status")
+    assert empty.status_code == 404
+
+    inj = client.post(
+        "/api/v1/inject/",
+        json={
+            "machine_id": "pro-ui-01",
+            "fault_type": "imbalance",
+            "severity": 0.55,
+            "sound_db": 74.5,
+            "seed": 7,
+        },
+    )
+    assert inj.status_code == 200
+
+    status_resp = client.get("/api/v1/status")
+    assert status_resp.status_code == 200
+    payload = status_resp.json()
+    assert payload["machine_id"] == "pro-ui-01"
+    assert payload["vibration"] > 0.0
+    assert payload["current"] > 0.0
+    assert payload["sound"] == 74.5
+    assert 0.0 <= payload["degradation"] <= 100.0
+    assert abs(payload["degradation"] - round(payload["anomaly_score"] * 100.0, 1)) < 0.2
+
+    dash_list = client.get("/api/v1/dashboard/")
+    assert dash_list.status_code == 200
+    assert any(item["machine_id"] == "pro-ui-01" for item in dash_list.json())

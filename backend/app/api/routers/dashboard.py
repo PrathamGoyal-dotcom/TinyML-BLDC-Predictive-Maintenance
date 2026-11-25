@@ -20,6 +20,24 @@ def get_state_manager(request: Request) -> DashboardStateManager:
 
 
 @router.get(
+    "/",
+    response_model=list[DashboardResponse],
+    summary="List compact localized health status for all active machines",
+)
+def list_machine_dashboards(
+    language: str = Query(default="en", pattern="^(en|hi)$"),
+    state_mgr: DashboardStateManager = Depends(get_state_manager),
+) -> list[DashboardResponse]:
+    """Return compact dashboard payloads for all machines with live state."""
+    responses: list[DashboardResponse] = []
+    for machine_id in state_mgr.list_machine_ids():
+        snap = state_mgr.get_snapshot(machine_id)
+        if snap is not None:
+            responses.append(state_mgr.build_dashboard_payload(snap, language=language))
+    return responses
+
+
+@router.get(
     "/{machine_id}",
     response_model=DashboardResponse,
     summary="Get ultra-lightweight localized health status for a machine",

@@ -89,6 +89,9 @@ def ingest_recording(
         inference=inference,
         rpm=payload.rpm,
         temperature_c=payload.temperature_c,
+        vib_std=features["vib_std"],
+        curr_rms=features["curr_rms"],
+        sound_db=payload.sound_db,
         updated_at=ts,
     )
     dashboard = state_mgr.build_dashboard_payload(snapshot, language=language)
