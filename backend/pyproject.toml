@@ -1,0 +1,11 @@
+[project]
+name = "tinyml-bldc-backend"
+version = "1.0.0"
+description = "FastAPI backend and TinyML pipeline for BLDC motor predictive maintenance."
+readme = "README.md"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-v"
